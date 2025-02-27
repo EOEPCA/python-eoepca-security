@@ -4,4 +4,14 @@ version = "0.1.0"
 description = "Utilities for writing Python clients for use with the EOEPCA IAM"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "cryptography>=44.0.1",
+    "fastapi[standard]>=0.115.8",
+    "pyjwt>=2.10.1",
+    "requests>=2.32.3",
+    "types-requests>=2.32.0.20241016",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
