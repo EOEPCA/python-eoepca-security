@@ -3,10 +3,8 @@ from fastapi import Depends, FastAPI, Request, BackgroundTasks
 from eoepca_security import OIDCProxyScheme
 
 import os
-import pathlib
 import logging
 import time
-import json
 
 import typing
 # import typing_extensions
@@ -29,7 +27,8 @@ REMOTE_PROTECTED_ENDPOINT = os.environ["REMOTE_PROTECTED_ENDPOINT"]
 
 TLS_NO_VERIFY = (os.environ.get("TLS_NO_VERIFY") or "false").lower() == "true"
 
-def background(security):
+
+def background(security: typing.Any) -> None:
     wait = 20
     for i in range(20):
         if i % 3 == 2 and security is not None:
@@ -50,9 +49,9 @@ def background(security):
             security["tokens"]["refresh"] = refresh_data["refresh_token"]
 
         if security:
-            headers={"Authorization": f"Bearer {security['tokens']['auth']}"}
+            headers = {"Authorization": f"Bearer {security['tokens']['auth']}"}
         else:
-            headers={}
+            headers = {}
 
         backend_request = requests.get(
             REMOTE_PROTECTED_ENDPOINT,
@@ -64,23 +63,25 @@ def background(security):
 
         time.sleep(wait)
 
+
 security_scheme = OIDCProxyScheme(
-    openIdConnectUrl = OPEN_ID_CONNECT_URL,
-    audience = OPEN_ID_CONNECT_AUDIENCE,
-    id_token_header = "x-id-token",
-    refresh_token_header = "x-refresh-token",
-    auth_token_header = "Authorization",
-    auth_token_in_authorization = True,
-    auto_error = False,
-    scheme_name = "OIDC behind auth proxy"
+    openIdConnectUrl=OPEN_ID_CONNECT_URL,
+    audience=OPEN_ID_CONNECT_AUDIENCE,
+    id_token_header="x-id-token",
+    refresh_token_header="x-refresh-token",
+    auth_token_header="Authorization",
+    auth_token_in_authorization=True,
+    auto_error=False,
+    scheme_name="OIDC behind auth proxy",
 )
+
 
 @app.get("/")
 async def root(
     security: typing.Annotated[typing.Any, Depends(security_scheme)],
     req: Request,
     background_tasks: BackgroundTasks,
-):
+) -> dict[str, typing.Any]:
     if security is None:
         username = "unauthorised person"
     elif "preferred_username" in security["claims"]:
@@ -114,6 +115,6 @@ async def root(
     return {
         "message": f"Hello World, Hello {username}!",
         "backend": backend_data,
-        "headers": req.headers,
+        "headers": dict(req.headers),
         "security": security,
     }
