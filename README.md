@@ -57,3 +57,16 @@ The service expects to be forwarded access, refresh, and ID tokens, as done by t
 for APISIX. See
 [this guide](https://github.com/EOEPCA/resource-health/wiki/Exposing-a-local-service-on-the-apx.develop.eoepca.org-ingress)
 for how to expose a locally running service behind a remote APISIX ingress.
+
+## mitmproxy add-on
+
+The repository also contains an example [mitmproxy](https://mitmproxy.org/) add-on, which can be used to proxy
+(unauthenticated) requests to a service which requires authentication. It does so by using provided access and/or
+refresh tokens.
+
+Usage example
+```
+mitmdump -s mitmproxy-oidc-addon.py --set refresh_token="..." --set oidc_url=".../.well-known/openid-configuration" --mode reverse:https://remote_service:remote_port
+```
+Once running, [http://localhost:8080](http://localhost:8080) will forward to
+[https://remote_service:remote_port](https://remote_service:remote_port) (with refreshed auth tokens).
