@@ -47,6 +47,17 @@ class ValidatedIDToken(DecodedIDToken):
         super().__init__(raw=raw, decoded=decoded)
 
 
+class RefreshToken:
+    def __init__(self, raw: str):
+        self.raw = raw
+
+
+class ClientCredentials:
+    def __init__(self, client_id: str, client_secret: str):
+        self.client_id = client_id
+        self.client_secret = client_secret
+
+
 class OIDCUtil:
     """
     utility class that wraps an OpenID-connect Well-Known Configuration
@@ -92,6 +103,26 @@ class OIDCUtil:
             raise RuntimeError("id token has incorrect at_hash")
 
         return ValidatedIDToken(raw=id_token.raw, decoded=id_token_data)
+
+    def refresh_auth_token(
+        self, client_credentials: ClientCredentials, refresh_token: RefreshToken
+    ) -> tuple[RefreshToken, AuthToken]:
+        token_endpoint = self._oidc_config["token_endpoint"]
+
+        refresh_data = requests.post(
+            token_endpoint,
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token.raw,
+                "client_id": client_credentials.client_id,
+                "client_secret": client_credentials.client_secret,
+            },
+        ).json()
+
+        return (
+            RefreshToken(refresh_data["refresh_token"]),
+            AuthToken(refresh_data["access_token"]),
+        )
 
 
 def request_oidcutil(url: str, **kvargs: dict[str, typing.Any]) -> OIDCUtil:

@@ -15,12 +15,14 @@ LOG = logging.getLogger("OIDCProxyScheme")
 
 __all__ = ["OIDCProxyScheme"]
 
-Tokens = typing.TypedDict("Tokens", {"auth": str, "id": str, "refresh": str})
-
-
-class SecurityInfo(typing.TypedDict):
-    tokens: Tokens
-    claims: dict[str, typing.Any]
+Tokens = typing.TypedDict(
+    "Tokens",
+    {
+        "auth": util.ValidatedAuthToken,
+        "id": util.ValidatedIDToken,
+        "refresh": util.RefreshToken,
+    },
+)
 
 
 class OIDCProxyScheme(SecurityBase):
@@ -105,7 +107,7 @@ class OIDCProxyScheme(SecurityBase):
         self._auth_token_in_authorization = auth_token_in_authorization
         self._audience = audience
 
-    async def __call__(self, request: Request) -> SecurityInfo | None:
+    async def __call__(self, request: Request) -> Tokens | None:
         id_token_raw = request.headers.get(self._id_token_header)
 
         if not self._auth_token_in_authorization:
@@ -185,10 +187,7 @@ class OIDCProxyScheme(SecurityBase):
             return None
 
         return {
-            "tokens": {
-                "auth": auth_token.raw,
-                "id": id_token.raw,
-                "refresh": refresh_token_raw,
-            },
-            "claims": id_token.decoded,  # + auth_token_data?
+            "auth": auth_token,
+            "id": id_token,
+            "refresh": util.RefreshToken(raw=refresh_token_raw),
         }
