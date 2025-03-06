@@ -27,7 +27,7 @@ class DecodedAuthToken(AuthToken):
         ).rstrip(b"=")
 
     def is_expired(
-        self, at_time: datetime.datetime | None, margin: datetime.timedelta | None
+        self, at_time: datetime.datetime | None = None, margin: datetime.timedelta | None = None
     ) -> bool:
         at_time = at_time or datetime.datetime.now()
 
