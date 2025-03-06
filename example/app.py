@@ -122,5 +122,7 @@ async def root(
             "id": tokens["id"].raw,
             "refresh": tokens["refresh"].raw,
             "id_claims": tokens["id"].decoded,
-        } if tokens is not None else {},
+        }
+        if tokens is not None
+        else {},
     }

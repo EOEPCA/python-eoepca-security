@@ -1,5 +1,6 @@
 import base64
 import json
+import datetime
 
 import typing
 
@@ -24,6 +25,16 @@ class DecodedAuthToken(AuthToken):
         return base64.urlsafe_b64encode(
             auth_token_digest[: (len(auth_token_digest) // 2)]
         ).rstrip(b"=")
+
+    def is_expired(
+        self, at_time: datetime.datetime | None, margin: datetime.timedelta | None
+    ) -> bool:
+        at_time = at_time or datetime.datetime.now()
+
+        if margin is not None:
+            at_time = at_time + margin
+
+        return datetime.datetime.fromtimestamp(self.decoded["exp"]) <= at_time
 
 
 class ValidatedAuthToken(DecodedAuthToken):
