@@ -10,7 +10,6 @@ after which http://localhost:8080 forwards to https://remote_service:remote_port
 (with refreshed auth tokens).
 """
 
-import logging
 import datetime
 from typing import Optional, Self, Iterable
 import os
@@ -108,7 +107,7 @@ class OIDCAuthProxy:
         if self._current_auth_token is not None and self._current_auth_token.is_expired(
             margin=datetime.timedelta(minutes=1)
         ):
-            logging.info("auth_token expired")
+            ctx.log.info("auth_token expired") # type: ignore
             self._current_auth_token = None
 
         if self._current_auth_token is None:
@@ -125,7 +124,7 @@ class OIDCAuthProxy:
             if self._client_credentials is None:
                 raise RuntimeError("Internal error: _client_credentials not set")
 
-            logging.info("Refreshing auth_token")
+            ctx.log.info("Refreshing auth_token") # type: ignore
             new_refresh_token, new_auth_token = self._oidcutil.refresh_auth_token(
                 self._client_credentials,
                 self._current_refresh_token,
