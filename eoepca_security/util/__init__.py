@@ -27,13 +27,19 @@ class DecodedAuthToken(AuthToken):
         ).rstrip(b"=")
 
     def is_expired(
-        self, at_time: datetime.datetime | None = None, margin: datetime.timedelta | None = None
+        self,
+        at_time: datetime.datetime | None = None,
+        margin: datetime.timedelta | None = None,
     ) -> bool:
+        if "exp" not in self.decoded:
+            return False
+
         at_time = at_time or datetime.datetime.now()
 
         if margin is not None:
             at_time = at_time + margin
 
+        
         return datetime.datetime.fromtimestamp(self.decoded["exp"]) <= at_time
 
 

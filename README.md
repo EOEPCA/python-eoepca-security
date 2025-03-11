@@ -70,3 +70,15 @@ mitmdump -s mitmproxy-oidc-addon.py --set refresh_token="..." --set oidc_url="..
 ```
 Once running, [http://localhost:8080](http://localhost:8080) will forward to
 [https://remote_service:remote_port](https://remote_service:remote_port) (with refreshed auth tokens).
+
+You can also use the utility script [example/run-mitmproxy.py](./example/run-mitmproxy.py) which configures the add-on
+through environment variables (see [env.example](./env.example)). This is especially useful when used in a container,
+
+```
+docker build -t mitmproxy-oidc -f Dockerfile.mitmproxy
+```
+
+
+```
+docker run --rm -it  -p 8080:8080 -e OPEN_ID_CONNECT_URL="$OPEN_ID_CONNECT_URL" -e OPEN_ID_CONNECT_CLIENT_ID="$OPEN_ID_CONNECT_CLIENT_ID" -e OPEN_ID_CONNECT_CLIENT_SECRET="$OPEN_ID_CONNECT_CLIENT_SECRET" -e REMOTE_PROTECTED_DOMAIN="$REMOTE_PROTECTED_DOMAIN" -e TLS_NO_VERIFY="true" -e OPEN_ID_CONNECT_AUDIENCE="$OPEN_ID_CONNECT_AUDIENCE" -e OPEN_ID_REFRESH_TOKEN="$OPEN_ID_REFRESH_TOKEN" mitmproxy-oidc
+```

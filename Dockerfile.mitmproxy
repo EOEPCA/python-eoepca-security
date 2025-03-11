@@ -1,0 +1,23 @@
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim as build
+
+WORKDIR /app
+
+COPY . /app/
+
+RUN uv sync --python-preference only-system --no-dev --frozen --compile-bytecode --no-editable
+RUN uv pip install mitmproxy
+
+# Would like to compile to bytecode later on
+# RUN uv sync --frozen --compile-bytecode
+
+FROM python:3.12-slim-bookworm as runner
+
+WORKDIR /app
+
+COPY --from=build /app/.venv /app/.venv
+COPY example/mitmproxy-oidc-addon.py example/run-mitmproxy.py /app
+
+EXPOSE 8080
+ENTRYPOINT ["/app/.venv/bin/python", "run-mitmproxy.py"]
+
+CMD [""]

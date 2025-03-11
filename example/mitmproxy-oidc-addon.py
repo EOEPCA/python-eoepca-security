@@ -9,81 +9,83 @@ mitmdump -s mitmproxy-oidc-addon.py --set refresh_token="..." --set oidc_url="..
 after which http://localhost:8080 forwards to https://remote_service:remote_port
 (with refreshed auth tokens).
 """
+
 import logging
 import datetime
-from typing import Optional
+from typing import Optional, Self, Iterable
 import os
 
-from mitmproxy import ctx
-from mitmproxy import exceptions
+from mitmproxy import ctx as ctx, http as http
+from mitmproxy.exceptions import OptionsError as OptionsError
+from mitmproxy.addonmanager import Loader as Loader
 
 from eoepca_security import (
     request_oidcutil,
     OIDCUtil,
     ClientCredentials,
-    AuthToken,
+    # AuthToken,
     ValidatedAuthToken,
     RefreshToken,
 )
 
 
 class OIDCAuthProxy:
-    def __init__(self):
+    def __init__(self : Self):
         self._current_auth_token: ValidatedAuthToken | None = None
         self._current_refresh_token: RefreshToken | None = None
         self._oidcutil: OIDCUtil | None = None
         self._client_credentials: ClientCredentials | None = None
 
-    def load(self, loader):
+    def load(self, loader : Loader) -> None:
         loader.add_option(
             name="auth_token",
-            typespec=Optional[str],
-            default=None,
-            help="(Initial) auth token",
+            typespec=Optional[str], # type: ignore
+            default=os.environ.get("OPEN_ID_AUTH_TOKEN"),
+            help="(Initial) auth token (defaults to $OPEN_ID_AUTH_TOKEN)",
         )
         loader.add_option(
             name="refresh_token",
-            typespec=Optional[str],
-            default=None,
-            help="(Initial) refresh token",
+            typespec=Optional[str], # type: ignore
+            default=os.environ.get("OPEN_ID_REFRESH_TOKEN"),
+            help="(Initial) refresh token (defaults to $OPEN_ID_REFRESH_TOKEN)",
         )
         loader.add_option(
             name="oidc_url",
-            typespec=Optional[str],
+            typespec=Optional[str], # type: ignore
             default=os.environ.get("OPEN_ID_CONNECT_URL"),
             help="OIDC Well-known configuration URL (defaults to $OPEN_ID_CONNECT_URL)",
         )
         loader.add_option(
             name="oidc_client_id",
-            typespec=Optional[str],
+            typespec=Optional[str], # type: ignore
             default=os.environ.get("OPEN_ID_CONNECT_CLIENT_ID"),
             help="OIDC client ID (defaults to $OPEN_ID_CONNECT_CLIENT_ID)",
         )
         loader.add_option(
             name="oidc_client_secret",
-            typespec=Optional[str],
+            typespec=Optional[str], # type: ignore
             default=os.environ.get("OPEN_ID_CONNECT_CLIENT_SECRET"),
             help="OIDC client secret (defaults to $OPEN_ID_CONNECT_CLIENT_SECRET)",
         )
         loader.add_option(
             name="oidc_audience",
-            typespec=Optional[str],
+            typespec=Optional[str], # type: ignore
             default=os.environ.get("OPEN_ID_CONNECT_AUDIENCE"),
-            help="OIDC audience (for access token)",
+            help="OIDC audience (for access token, defaults to $OPEN_ID_CONNECT_AUDIENCE)",
         )
 
-    def configure(self, updates):
+    def configure(self, updates : Iterable[str]) -> None:
         if ctx.options.oidc_url is None:
-            raise exceptions.OptionsError("Must specify oidc_url")
+            raise OptionsError("Must specify oidc_url") # type: ignore
         if "oidc_url" in updates:
             self._oidcutil = request_oidcutil(ctx.options.oidc_url)
         assert self._oidcutil is not None
 
         # if "auth_token" in updates or "refresh_token" in updates:
         if ctx.options.auth_token is None and ctx.options.refresh_token is None:
-            raise exceptions.OptionsError(
+            raise OptionsError(
                 "Needs at least one of auth_token and refresh_token"
-            )
+            ) # type: ignore
 
         if "auth_token" in updates:
             if ctx.options.auth_token is not None:
@@ -93,16 +95,16 @@ class OIDCAuthProxy:
 
         # if "oidc_client_id" in updates or "oidc_client_secret" in updates:
         if ctx.options.oidc_client_id is None:
-            raise exceptions.OptionsError("Must specify oidc_client_id")
+            raise OptionsError("Must specify oidc_client_id") # type: ignore
 
         if ctx.options.oidc_client_secret is None:
-            raise exceptions.OptionsError("Must specify oidc_client_secret")
+            raise OptionsError("Must specify oidc_client_secret") # type: ignore
 
         self._client_credentials = ClientCredentials(
             ctx.options.oidc_client_id, ctx.options.oidc_client_secret
         )
 
-    def request(self, flow):
+    def request(self, flow : http.HTTPFlow) -> None:
         if self._current_auth_token is not None and self._current_auth_token.is_expired(
             margin=datetime.timedelta(minutes=1)
         ):
