@@ -31,16 +31,14 @@ class DecodedAuthToken(AuthToken):
         at_time: datetime.datetime | None = None,
         margin: datetime.timedelta | None = None,
     ) -> bool:
-        if "exp" not in self.decoded:
-            return False
+        expiry_time = datetime.datetime.fromtimestamp(self.decoded["payload"]["exp"]) 
 
         at_time = at_time or datetime.datetime.now()
 
         if margin is not None:
             at_time = at_time + margin
-
         
-        return datetime.datetime.fromtimestamp(self.decoded["exp"]) <= at_time
+        return expiry_time <= at_time
 
 
 class ValidatedAuthToken(DecodedAuthToken):
