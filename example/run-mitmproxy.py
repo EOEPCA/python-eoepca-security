@@ -37,5 +37,8 @@ PROXY_PORT = os.environ.get("PROXY_PORT")
 mitmdump(
     args=["-s", "mitmproxy-oidc-addon.py"]
     + EXTRA_ARGS
-    + ["--mode", f"reverse:{REMOTE_PROTECTED_DOMAIN}@{PROXY_HOST or '0.0.0.0'}:{PROXY_PORT or '8080'}"]
+    + [
+        "--mode",
+        f"reverse:{REMOTE_PROTECTED_DOMAIN}@{PROXY_HOST or '0.0.0.0'}:{PROXY_PORT or '8080'}",
+    ]
 )
