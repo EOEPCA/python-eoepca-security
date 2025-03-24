@@ -18,9 +18,9 @@ __all__ = ["OIDCProxyScheme"]
 Tokens = typing.TypedDict(
     "Tokens",
     {
-        "auth": util.ValidatedAuthToken,
-        "id": util.ValidatedIDToken,
-        "refresh": util.RefreshToken,
+        "auth": typing.Optional[util.ValidatedAuthToken],
+        "id": typing.Optional[util.ValidatedIDToken],
+        "refresh": typing.Optional[util.RefreshToken],
     },
 )
 
@@ -56,6 +56,15 @@ class OIDCProxyScheme(SecurityBase):
                 "id_token_header is treated as an authorization header with scheme"
             ),
         ] = True,
+        require_auth_token: typing.Annotated[
+            bool, typing_extensions.Doc("Fail unless auth token in present.")
+        ] = True,
+        require_refresh_token: typing.Annotated[
+            bool, typing_extensions.Doc("Fail unless refresh token in present.")
+        ] = False,
+        require_id_token: typing.Annotated[
+            bool, typing_extensions.Doc("Fail unless id token in present.")
+        ] = False,
         scheme_name: typing.Annotated[
             typing.Optional[str],
             typing_extensions.Doc(
@@ -107,6 +116,10 @@ class OIDCProxyScheme(SecurityBase):
         self._auth_token_in_authorization = auth_token_in_authorization
         self._audience = audience
 
+        self._require_auth_token = require_auth_token
+        self._require_refresh_token = require_refresh_token
+        self._require_id_token = require_id_token
+
     async def __call__(self, request: Request) -> Tokens | None:
         id_token_raw = request.headers.get(self._id_token_header)
 
@@ -118,19 +131,25 @@ class OIDCProxyScheme(SecurityBase):
                 auth_token_header_raw
             )
 
-        if scheme.lower() != "bearer":
-            LOG.error(f"Invalid credential scheme {scheme}, expecting 'bearer'")
-            if self.auto_error:
-                raise HTTPException(
-                    status_code=HTTP_403_FORBIDDEN,
-                    detail="Invalid authentication credentials",
-                )
+            if scheme.lower() != "bearer":
+                LOG.error(f"Invalid credential scheme {scheme}, expecting 'bearer'")
+                if self.auto_error:
+                    raise HTTPException(
+                        status_code=HTTP_403_FORBIDDEN,
+                        detail="Invalid authentication credentials",
+                    )
 
-            return None
+                return None
 
         refresh_token_raw = request.headers.get(self._refresh_token_header)
 
-        if id_token_raw is None or auth_token_raw is None or refresh_token_raw is None:
+        if any(
+            [
+                self._require_id_token and id_token_raw is None,
+                self._require_auth_token and auth_token_raw is None,
+                self._require_refresh_token and refresh_token_raw is None,
+            ]
+        ):
             missing_tokens = [
                 token_name
                 for token_name, token_value in [
@@ -162,10 +181,13 @@ class OIDCProxyScheme(SecurityBase):
                 )
 
         try:
-            auth_token = oidc_util.validate_auth_token(
-                auth_token_raw,
-                audience=self._audience,
-            )
+            if auth_token_raw is None:
+                auth_token = None
+            else:
+                auth_token = oidc_util.validate_auth_token(
+                    auth_token_raw,
+                    audience=self._audience,
+                )
         except Exception as e:
             LOG.error(f"Failed to read token data: {str(e)}")
             if self.auto_error:
@@ -176,7 +198,17 @@ class OIDCProxyScheme(SecurityBase):
             return None
 
         try:
-            id_token = oidc_util.validate_id_token(auth_token, id_token_raw)
+            if id_token_raw is None:
+                id_token = None
+            elif auth_token is None:
+                LOG.error("Cannot validate ID token without Auth token")
+                if self.auto_error:
+                    raise HTTPException(
+                        status_code=HTTP_403_FORBIDDEN,
+                        detail="Unable to validate ID token",
+                    )
+            else:
+                id_token = oidc_util.validate_id_token(auth_token, id_token_raw)
         except Exception as e:
             LOG.error(f"Failed to validate id token: {str(e)}")
             if self.auto_error:
@@ -189,5 +221,7 @@ class OIDCProxyScheme(SecurityBase):
         return {
             "auth": auth_token,
             "id": id_token,
-            "refresh": util.RefreshToken(raw=refresh_token_raw),
+            "refresh": util.RefreshToken(raw=refresh_token_raw)
+            if refresh_token_raw
+            else None,
         }
