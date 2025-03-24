@@ -102,6 +102,9 @@ class OIDCAuthProxy:
                     ctx.options.auth_token, ctx.options.oidc_audience
                 )
 
+        if "refresh_token" in updates:
+            self._current_refresh_token = RefreshToken(ctx.options.refresh_token)
+
         # if "oidc_client_id" in updates or "oidc_client_secret" in updates:
         if ctx.options.oidc_client_id is None:
             raise OptionsError("Must specify oidc_client_id")  # type: ignore
@@ -152,9 +155,6 @@ class OIDCAuthProxy:
             flow.kill()  # type: ignore
             ctx.master.shutdown()  # type: ignore
 
-        self._termination_port
-        self._termination_path
-
         if self._current_auth_token is not None and self._current_auth_token.is_expired(
             margin=datetime.timedelta(minutes=1)
         ):
@@ -163,12 +163,10 @@ class OIDCAuthProxy:
 
         if self._current_auth_token is None:
             if self._current_refresh_token is None:
-                if ctx.options.refresh_token is None:
-                    flow.kill()  # type: ignore
-                    raise RuntimeError(
-                        "Unable to refresh auth token due to missing refresh_token"
-                    )
-                self._current_refresh_token = RefreshToken(ctx.options.refresh_token)
+                flow.kill()  # type: ignore
+                raise RuntimeError(
+                    "Unable to refresh auth token due to missing refresh_token"
+                )
 
             if self._oidcutil is None:
                 flow.kill()  # type: ignore
