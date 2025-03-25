@@ -11,6 +11,7 @@ after which http://localhost:8080 forwards to https://remote_service:remote_port
 """
 
 import datetime
+import time
 from typing import Optional, Self, Iterable
 import os
 from urllib.parse import urlparse
@@ -96,15 +97,6 @@ class OIDCAuthProxy:
         if ctx.options.auth_token is None and ctx.options.refresh_token is None:
             raise OptionsError("Needs at least one of auth_token and refresh_token")  # type: ignore
 
-        if "auth_token" in updates:
-            if ctx.options.auth_token is not None:
-                self._current_auth_token = self._oidcutil.validate_auth_token(
-                    ctx.options.auth_token, ctx.options.oidc_audience
-                )
-
-        if "refresh_token" in updates:
-            self._current_refresh_token = RefreshToken(ctx.options.refresh_token)
-
         # if "oidc_client_id" in updates or "oidc_client_secret" in updates:
         if ctx.options.oidc_client_id is None:
             raise OptionsError("Must specify oidc_client_id")  # type: ignore
@@ -133,6 +125,50 @@ class OIDCAuthProxy:
             reduced_path = termination_url.path.strip().strip("/")
             self._termination_path = reduced_path if reduced_path else None
 
+        if "auth_token" in updates:
+            if ctx.options.auth_token is not None:
+                self._current_auth_token = self._oidcutil.validate_auth_token(
+                    ctx.options.auth_token, ctx.options.oidc_audience
+                )
+
+        if "refresh_token" in updates:
+            self._current_refresh_token = RefreshToken(ctx.options.refresh_token)
+            # self._ensure_access_token()
+
+    def _ensure_access_token(self) -> ValidatedAuthToken:
+        if self._current_auth_token is not None and self._current_auth_token.is_expired(
+            margin=datetime.timedelta(minutes=1)
+        ):
+            ctx.log.info("auth_token expired")  # type: ignore
+            self._current_auth_token = None
+
+        if self._current_auth_token is None:
+            if self._current_refresh_token is None:
+                raise RuntimeError(
+                    "Unable to refresh auth token due to missing refresh_token"
+                )
+
+            if self._oidcutil is None:
+                raise RuntimeError("Internal error: _oidcutil not set")
+
+            if self._client_credentials is None:
+                raise RuntimeError("Internal error: _client_credentials not set")
+
+            ctx.log.info("Refreshing auth_token")  # type: ignore
+            new_refresh_token, new_auth_token = self._oidcutil.refresh_auth_token(
+                self._client_credentials,
+                self._current_refresh_token,
+            )
+
+            new_auth_token = self._oidcutil.validate_auth_token(
+                new_auth_token, ctx.options.oidc_audience
+            )
+
+            self._current_auth_token = new_auth_token
+            self._current_refresh_token = new_refresh_token
+
+        return self._current_auth_token
+
     def requestheaders(self, flow: http.HTTPFlow) -> None:
         flow.intercept()  # type: ignore
 
@@ -155,41 +191,21 @@ class OIDCAuthProxy:
             flow.kill()  # type: ignore
             ctx.master.shutdown()  # type: ignore
 
-        if self._current_auth_token is not None and self._current_auth_token.is_expired(
-            margin=datetime.timedelta(minutes=1)
-        ):
-            ctx.log.info("auth_token expired")  # type: ignore
-            self._current_auth_token = None
+        try:
+            current_auth_token = self._ensure_access_token()
+        except RuntimeError as e:
+            ctx.log.error(str(e))  # type: ignore 
+            flow.kill()  # type: ignore 
 
-        if self._current_auth_token is None:
-            if self._current_refresh_token is None:
-                flow.kill()  # type: ignore
-                raise RuntimeError(
-                    "Unable to refresh auth token due to missing refresh_token"
-                )
+        # ctx.log.info(f"Bearer {self._current_auth_token.raw}")
+        age = datetime.datetime.now() - current_auth_token.issued_at()
+        slack_age = datetime.timedelta(seconds=1)
+        if age < slack_age:
+            delay = (slack_age - age).total_seconds()
+            ctx.log.info(f"Delaying {delay}s due to fresh token")  # type: ignore
+            time.sleep(delay)
 
-            if self._oidcutil is None:
-                flow.kill()  # type: ignore
-                raise RuntimeError("Internal error: _oidcutil not set")
-
-            if self._client_credentials is None:
-                flow.kill()  # type: ignore
-                raise RuntimeError("Internal error: _client_credentials not set")
-
-            ctx.log.info("Refreshing auth_token")  # type: ignore
-            new_refresh_token, new_auth_token = self._oidcutil.refresh_auth_token(
-                self._client_credentials,
-                self._current_refresh_token,
-            )
-
-            new_auth_token = self._oidcutil.validate_auth_token(
-                new_auth_token, ctx.options.oidc_audience
-            )
-
-            self._current_auth_token = new_auth_token
-            self._current_refresh_token = new_refresh_token
-
-        flow.request.headers["authorization"] = f"Bearer {self._current_auth_token.raw}"
+        flow.request.headers["authorization"] = f"Bearer {current_auth_token.raw}"
         flow.resume()  # type: ignore
 
 

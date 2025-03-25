@@ -26,19 +26,23 @@ class DecodedAuthToken(AuthToken):
             auth_token_digest[: (len(auth_token_digest) // 2)]
         ).rstrip(b"=")
 
+    def expration_time(self) -> datetime.datetime:
+        return datetime.datetime.fromtimestamp(self.decoded["payload"]["exp"]) 
+
+    def issued_at(self) -> datetime.datetime:
+        return datetime.datetime.fromtimestamp(self.decoded["payload"]["iat"]) 
+
     def is_expired(
         self,
         at_time: datetime.datetime | None = None,
         margin: datetime.timedelta | None = None,
     ) -> bool:
-        expiry_time = datetime.datetime.fromtimestamp(self.decoded["payload"]["exp"]) 
-
         at_time = at_time or datetime.datetime.now()
 
         if margin is not None:
             at_time = at_time + margin
         
-        return expiry_time <= at_time
+        return self.expration_time() <= at_time
 
 
 class ValidatedAuthToken(DecodedAuthToken):
