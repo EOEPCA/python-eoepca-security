@@ -198,12 +198,13 @@ class OIDCAuthProxy:
             flow.kill()  # type: ignore 
 
         # ctx.log.info(f"Bearer {self._current_auth_token.raw}")
-        age = datetime.datetime.now() - current_auth_token.issued_at()
-        slack_age = datetime.timedelta(seconds=1)
-        if age < slack_age:
-            delay = (slack_age - age).total_seconds()
-            ctx.log.info(f"Delaying {delay}s due to fresh token")  # type: ignore
-            time.sleep(delay)
+
+        # age = datetime.datetime.now() - current_auth_token.issued_at()
+        # slack_age = datetime.timedelta(seconds=1)
+        # if age < slack_age:
+        #     delay = (slack_age - age).total_seconds()
+        #     ctx.log.info(f"Delaying {delay}s due to fresh token")  # type: ignore
+        #     time.sleep(delay)
 
         flow.request.headers["authorization"] = f"Bearer {current_auth_token.raw}"
         flow.resume()  # type: ignore
