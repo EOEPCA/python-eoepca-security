@@ -194,8 +194,8 @@ class OIDCAuthProxy:
         try:
             current_auth_token = self._ensure_access_token()
         except RuntimeError as e:
-            ctx.log.error(str(e))  # type: ignore 
-            flow.kill()  # type: ignore 
+            ctx.log.error(str(e))  # type: ignore
+            flow.kill()  # type: ignore
 
         # ctx.log.info(f"Bearer {self._current_auth_token.raw}")
 

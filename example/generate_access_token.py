@@ -31,10 +31,12 @@ client_credentials = ClientCredentials(
     OPEN_ID_CONNECT_CLIENT_ID, OPEN_ID_CONNECT_CLIENT_SECRET
 )
 
-new_refresh_token, new_auth_token = request_oidcutil(OPEN_ID_CONNECT_URL).refresh_auth_token(
+new_refresh_token, new_auth_token = request_oidcutil(
+    OPEN_ID_CONNECT_URL
+).refresh_auth_token(
     client_credentials,
     RefreshToken(OPEN_ID_REFRESH_TOKEN),
 )
 
-#print(f"New refresh token:\n\n{new_refresh_token.raw}\n\nAuth token\n\n{new_auth_token.raw}\n")
+# print(f"New refresh token:\n\n{new_refresh_token.raw}\n\nAuth token\n\n{new_auth_token.raw}\n")
 print(new_auth_token.raw)
