@@ -150,12 +150,12 @@ class OIDCUtil:
         )
 
 
-def get_session_with_cache() -> requests.Session:
-    return CachedSession(cache_control=True)
+def get_session_with_cache() -> CachedSession:
+    return CachedSession()
 
-def request_oidcutil(session: requests.Session | None, url: str, **kvargs: dict[str, typing.Any]) -> OIDCUtil:
+def request_oidcutil(session: CachedSession | None, url: str, **kvargs: dict[str, typing.Any]) -> OIDCUtil:
     """
     GETs an OpenID-connect Well-Known configuration and returns the corresponding OIDCUtil.
     """
-    response = requests.get(url, **kvargs) if session is None else session.get(url, **kvargs)
+    response = requests.get(url, **kvargs) if session is None else session.get(url, expire_after=10, **kvargs)
     return OIDCUtil(oidc_config=response.json())  # type: ignore
