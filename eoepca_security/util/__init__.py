@@ -159,4 +159,6 @@ def request_oidcutil(session: CachedSession | None, url: str, **kvargs: dict[str
     """
     # response = requests.get(url, **kvargs) if session is None else session.get(url, expire_after=10, **kvargs)
     response = requests.get(url, **kvargs) if session is None else session.get(url, **kvargs)
+    if session is not None:
+        print(f"Is response from cache {response.from_cache}")
     return OIDCUtil(oidc_config=response.json())  # type: ignore
