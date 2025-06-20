@@ -11,7 +11,6 @@ after which http://localhost:8080 forwards to https://remote_service:remote_port
 """
 
 import datetime
-import time
 from typing import Optional, Self, Iterable
 import os
 from urllib.parse import urlparse
@@ -28,6 +27,7 @@ from eoepca_security import (
     ValidatedAuthToken,
     RefreshToken,
 )
+from eoepca_security.util import get_session_with_cache
 
 
 class OIDCAuthProxy:
@@ -36,6 +36,7 @@ class OIDCAuthProxy:
         self._current_refresh_token: RefreshToken | None = None
         self._oidcutil: OIDCUtil | None = None
         self._client_credentials: ClientCredentials | None = None
+        self._session = get_session_with_cache()
 
     def load(self, loader: Loader) -> None:
         loader.add_option(
@@ -90,7 +91,7 @@ class OIDCAuthProxy:
         if ctx.options.oidc_url is None:
             raise OptionsError("Must specify oidc_url")  # type: ignore
         if "oidc_url" in updates:
-            self._oidcutil = request_oidcutil(ctx.options.oidc_url)
+            self._oidcutil = request_oidcutil(self._session, ctx.options.oidc_url)
         assert self._oidcutil is not None
 
         # if "auth_token" in updates or "refresh_token" in updates:
@@ -156,6 +157,7 @@ class OIDCAuthProxy:
 
             ctx.log.info("Refreshing auth_token")  # type: ignore
             new_refresh_token, new_auth_token = self._oidcutil.refresh_auth_token(
+                self._session,
                 self._client_credentials,
                 self._current_refresh_token,
             )

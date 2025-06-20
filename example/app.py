@@ -1,15 +1,14 @@
 from fastapi import Depends, FastAPI, Request, BackgroundTasks
-
-from eoepca_security import OIDCProxyScheme, ClientCredentials, Tokens, request_oidcutil
-
 import os
 import logging
 import time
-
 import typing
 # import typing_extensions
-
 import requests
+
+from eoepca_security.util import get_session_with_cache
+from eoepca_security import OIDCProxyScheme, ClientCredentials, Tokens, request_oidcutil
+
 
 LOG = logging.getLogger("ExampleApp")
 
@@ -33,13 +32,15 @@ TLS_NO_VERIFY = (os.environ.get("TLS_NO_VERIFY") or "false").lower() == "true"
 
 
 def background(tokens: Tokens) -> None:
+    session = get_session_with_cache()
     wait = 20
     for i in range(20):
         if i % 3 == 2 and tokens is not None:
             # oidc_config = requests.get(OPEN_ID_CONNECT_URL).json()
-            oidc_util = request_oidcutil(OPEN_ID_CONNECT_URL)
+            oidc_util = request_oidcutil(session, OPEN_ID_CONNECT_URL)
 
             new_refresh_token, new_auth_token = oidc_util.refresh_auth_token(
+                session,
                 CLIENT_CREDENTIALS,
                 tokens["refresh"],
             )

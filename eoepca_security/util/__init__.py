@@ -6,6 +6,7 @@ import typing
 
 import jwt
 import requests
+from requests_cache import CachedSession
 
 
 class AuthToken:
@@ -124,19 +125,24 @@ class OIDCUtil:
         return ValidatedIDToken(raw=id_token.raw, decoded=id_token_data)
 
     def refresh_auth_token(
-        self, client_credentials: ClientCredentials, refresh_token: RefreshToken
+        self, session: requests.Session | None, client_credentials: ClientCredentials, refresh_token: RefreshToken
     ) -> tuple[RefreshToken, AuthToken]:
         token_endpoint = self._oidc_config["token_endpoint"]
-
-        refresh_data = requests.post(
+        data = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token.raw,
+            "client_id": client_credentials.client_id,
+            "client_secret": client_credentials.client_secret,
+        }
+        
+        response = requests.post(
             token_endpoint,
-            data={
-                "grant_type": "refresh_token",
-                "refresh_token": refresh_token.raw,
-                "client_id": client_credentials.client_id,
-                "client_secret": client_credentials.client_secret,
-            },
-        ).json()
+            data=data
+        ) if session is None else session.post(token_endpoint, data=data)
+        # if not request.ok:
+        #     raise RuntimeError(f"Token refresh failed with code {request.status_code} and error {request.json()}")
+        
+        refresh_data = response.json()
 
         return (
             RefreshToken(refresh_data["refresh_token"]),
@@ -144,8 +150,12 @@ class OIDCUtil:
         )
 
 
-def request_oidcutil(url: str, **kvargs: dict[str, typing.Any]) -> OIDCUtil:
+def get_session_with_cache() -> requests.Session:
+    return CachedSession(cache_control=True)
+
+def request_oidcutil(session: requests.Session | None, url: str, **kvargs: dict[str, typing.Any]) -> OIDCUtil:
     """
     GETs an OpenID-connect Well-Known configuration and returns the corresponding OIDCUtil.
     """
-    return OIDCUtil(oidc_config=requests.get(url, **kvargs).json())  # type: ignore
+    response = requests.get(url, **kvargs) if session is None else session.get(url, **kvargs)
+    return OIDCUtil(oidc_config=response.json())  # type: ignore

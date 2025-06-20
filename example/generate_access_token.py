@@ -2,7 +2,6 @@ import os
 
 from eoepca_security import (
     request_oidcutil,
-    OIDCUtil,
     ClientCredentials,
     RefreshToken,
 )
@@ -32,10 +31,11 @@ client_credentials = ClientCredentials(
 )
 
 new_refresh_token, new_auth_token = request_oidcutil(
-    OPEN_ID_CONNECT_URL
+    session=None, url=OPEN_ID_CONNECT_URL
 ).refresh_auth_token(
-    client_credentials,
-    RefreshToken(OPEN_ID_REFRESH_TOKEN),
+    session=None,
+    client_credentials=client_credentials,
+    refresh_token=RefreshToken(OPEN_ID_REFRESH_TOKEN),
 )
 
 # print(f"New refresh token:\n\n{new_refresh_token.raw}\n\nAuth token\n\n{new_auth_token.raw}\n")
