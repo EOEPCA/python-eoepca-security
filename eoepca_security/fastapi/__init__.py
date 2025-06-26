@@ -1,3 +1,5 @@
+import datetime
+import time
 from fastapi import Request
 from fastapi.security.base import SecurityBase
 from fastapi.security.utils import get_authorization_scheme_param
@@ -104,7 +106,7 @@ class OIDCProxyScheme(SecurityBase):
             ),
         ] = True,
     ):
-        self.model = OpenIdConnectModel(
+        self.model: OpenIdConnectModel = OpenIdConnectModel(
             openIdConnectUrl=openIdConnectUrl, description=description
         )
         self.scheme_name = scheme_name or self.__class__.__name__
@@ -120,7 +122,8 @@ class OIDCProxyScheme(SecurityBase):
         self._require_refresh_token = require_refresh_token
         self._require_id_token = require_id_token
 
-        self._oidc_util: typing.Optional[util.OIDCUtil] = None
+        # OIDC util with the last fetch time
+        self._oidc_util_and_fetch_time: typing.Optional[tuple[util.OIDCUtil, float]] = None
 
     async def __call__(self, request: Request) -> Tokens | None:
         id_token_raw = request.headers.get(self._id_token_header)
@@ -169,27 +172,39 @@ class OIDCProxyScheme(SecurityBase):
                 )
             return None
 
-        if self._oidc_util is None:
-            ## NOTE: Get rid of this downcasting...
-            try:
-                assert isinstance(self.model, OpenIdConnectModel)
-                self._oidc_util = util.request_oidcutil(self.model.openIdConnectUrl)
-                
-            except Exception as e:
-                LOG.error(f"Failed to get OIDC JWKS client: {str(e)}")
-                self._oidc_util = None
+        cur_time = time.monotonic()
+        oidc_util: util.OIDCUtil
+        fetch_time: float
+        match self._oidc_util_and_fetch_time:
+            # the tuple() part is so that mypy infers types correctly
+            case tuple((oidc, last_fetch_time)) if cur_time - last_fetch_time < 10:
+                oidc_util = oidc
+                fetch_time = last_fetch_time
+            case _:
+                try:
+                    oidc_util = util.request_oidcutil(self.model.openIdConnectUrl)
+                    fetch_time = cur_time
+                    self._oidc_util_and_fetch_time = (oidc_util, fetch_time)
+                    
+                except Exception as e:
+                    LOG.error(f"Failed to get OIDC JWKS client: {str(e)}")
 
-                if self.auto_error:
-                    raise HTTPException(
-                        status_code=HTTP_403_FORBIDDEN,
-                        detail="Invalid authentication credentials",
-                    )
+                    if self.auto_error:
+                        raise HTTPException(
+                            status_code=HTTP_403_FORBIDDEN,
+                            detail="Invalid authentication credentials",
+                        )
+                    
+                    # TODO: Ask Tilo if this is reasonable
+                    return None
+
+        LOG.info(f"Time: {datetime.datetime.now()} fetch time {fetch_time}")
         
         try:
             if auth_token_raw is None:
                 auth_token = None
             else:
-                auth_token = self._oidc_util.validate_auth_token(
+                auth_token = oidc_util.validate_auth_token(
                     auth_token_raw,
                     audience=self._audience,
                 )
@@ -213,7 +228,7 @@ class OIDCProxyScheme(SecurityBase):
                         detail="Unable to validate ID token",
                     )
             else:
-                id_token = self._oidc_util.validate_id_token(auth_token, id_token_raw)
+                id_token = oidc_util.validate_id_token(auth_token, id_token_raw)
         except Exception as e:
             LOG.error(f"Failed to validate id token: {str(e)}")
             if self.auto_error:
