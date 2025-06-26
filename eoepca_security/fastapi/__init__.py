@@ -4,6 +4,7 @@ from fastapi import Request
 from fastapi.security.base import SecurityBase
 from fastapi.security.utils import get_authorization_scheme_param
 from fastapi.openapi.models import OpenIdConnect as OpenIdConnectModel
+import requests
 from starlette.exceptions import HTTPException
 import logging
 from starlette.status import HTTP_403_FORBIDDEN
@@ -122,8 +123,11 @@ class OIDCProxyScheme(SecurityBase):
         self._require_refresh_token = require_refresh_token
         self._require_id_token = require_id_token
 
+        self._session = requests.Session()
         # OIDC util with the last fetch time
-        self._oidc_util_and_fetch_time: typing.Optional[tuple[util.OIDCUtil, float]] = None
+        self._oidc_util_and_fetch_time: typing.Optional[tuple[util.OIDCUtil, float]] = (
+            None
+        )
 
     async def __call__(self, request: Request) -> Tokens | None:
         id_token_raw = request.headers.get(self._id_token_header)
@@ -182,10 +186,16 @@ class OIDCProxyScheme(SecurityBase):
                 fetch_time = last_fetch_time
             case _:
                 try:
-                    oidc_util = util.request_oidcutil(self.model.openIdConnectUrl)
+                    oidc_util = util.request_oidcutil(
+                        self.model.openIdConnectUrl,
+                        session=self._session,
+                        prev_oidc_util=None
+                        if self._oidc_util_and_fetch_time is None
+                        else self._oidc_util_and_fetch_time[0],
+                    )
                     fetch_time = cur_time
                     self._oidc_util_and_fetch_time = (oidc_util, fetch_time)
-                    
+
                 except Exception as e:
                     LOG.error(f"Failed to get OIDC JWKS client: {str(e)}")
 
@@ -194,12 +204,12 @@ class OIDCProxyScheme(SecurityBase):
                             status_code=HTTP_403_FORBIDDEN,
                             detail="Invalid authentication credentials",
                         )
-                    
+
                     # TODO: Ask Tilo if this is reasonable
                     return None
 
         LOG.info(f"Time: {datetime.datetime.now()} fetch time {fetch_time}")
-        
+
         try:
             if auth_token_raw is None:
                 auth_token = None

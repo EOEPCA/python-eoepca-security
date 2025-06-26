@@ -82,9 +82,18 @@ class OIDCUtil:
     utility class that wraps an OpenID-connect Well-Known Configuration
     """
 
-    def __init__(self, oidc_config: dict[str, typing.Any]):
+    def __init__(self, session: requests.Session, oidc_config: dict[str, typing.Any]) -> None:
+        self._session = session
+        self._jwks_client = jwt.PyJWKClient(OIDCUtil._get_jwks_uri(oidc_config))
         self._oidc_config = oidc_config
-        self._jwks_client = jwt.PyJWKClient(oidc_config["jwks_uri"])
+
+    def set_oidc_config(self, oidc_config: dict[str, typing.Any]) -> None:
+        self._jwks_client.uri = OIDCUtil._get_jwks_uri(oidc_config)
+        self._oidc_config = oidc_config
+
+    @staticmethod
+    def _get_jwks_uri(oidc_config: dict[str, typing.Any]) -> str:
+        return oidc_config["jwks_uri"]
 
     def validate_auth_token(
         self, auth_token: AuthToken | str, audience: str | None = None
@@ -128,7 +137,7 @@ class OIDCUtil:
     ) -> tuple[RefreshToken, AuthToken]:
         token_endpoint = self._oidc_config["token_endpoint"]
 
-        refresh_data = requests.post(
+        refresh_data = self._session.post(
             token_endpoint,
             data={
                 "grant_type": "refresh_token",
@@ -144,8 +153,13 @@ class OIDCUtil:
         )
 
 
-def request_oidcutil(url: str, **kvargs: dict[str, typing.Any]) -> OIDCUtil:
+def request_oidcutil(url: str, session: requests.Session, prev_oidc_util: typing.Optional[OIDCUtil], **kvargs: dict[str, typing.Any]) -> OIDCUtil:
     """
     GETs an OpenID-connect Well-Known configuration and returns the corresponding OIDCUtil.
     """
-    return OIDCUtil(oidc_config=requests.get(url, **kvargs).json())  # type: ignore
+    oidc_config=session.get(url, **kvargs).json()
+    if prev_oidc_util is None:
+        return OIDCUtil(session, oidc_config)
+    else:
+        prev_oidc_util.set_oidc_config(oidc_config)
+        return prev_oidc_util

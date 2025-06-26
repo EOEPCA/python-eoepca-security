@@ -11,10 +11,10 @@ after which http://localhost:8080 forwards to https://remote_service:remote_port
 """
 
 import datetime
-import time
 from typing import Optional, Self, Iterable
 import os
 from urllib.parse import urlparse
+import requests
 
 from mitmproxy import ctx as ctx, http as http
 from mitmproxy.exceptions import OptionsError as OptionsError
@@ -90,7 +90,9 @@ class OIDCAuthProxy:
         if ctx.options.oidc_url is None:
             raise OptionsError("Must specify oidc_url")  # type: ignore
         if "oidc_url" in updates:
-            self._oidcutil = request_oidcutil(ctx.options.oidc_url)
+            self._oidcutil = request_oidcutil(
+                ctx.options.oidc_url, session=requests.Session(), prev_oidc_util=None
+            )
         assert self._oidcutil is not None
 
         # if "auth_token" in updates or "refresh_token" in updates:
