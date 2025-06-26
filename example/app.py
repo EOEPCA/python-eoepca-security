@@ -5,7 +5,7 @@ import time
 import typing
 import requests
 
-from eoepca_security import OIDCProxyScheme, ClientCredentials, Tokens, request_oidcutil
+from eoepca_security import OIDCProxyScheme, ClientCredentials, Tokens
 from eoepca_security.util import OIDCUtil
 
 LOG = logging.getLogger("ExampleApp")
@@ -33,22 +33,20 @@ session = requests.Session()
 
 def background(tokens: Tokens) -> None:
     wait = 20
-    prev_oidc_util: typing.Optional[OIDCUtil] = None
+    oidc_util = OIDCUtil(session)
     for i in range(20):
         if i % 3 == 2 and tokens is not None:
             # oidc_config = session.get(OPEN_ID_CONNECT_URL).json()
-            oidc_util = request_oidcutil(
-                OPEN_ID_CONNECT_URL, session=session, prev_oidc_util=prev_oidc_util
-            )
-            prev_oidc_util = oidc_util
+            oidc_config = oidc_util.get_oidc_config(OPEN_ID_CONNECT_URL)
 
             new_refresh_token, new_auth_token = oidc_util.refresh_auth_token(
+                oidc_config,
                 CLIENT_CREDENTIALS,
                 tokens["refresh"],
             )
 
             new_auth_token = oidc_util.validate_auth_token(
-                new_auth_token, OPEN_ID_CONNECT_AUDIENCE
+                oidc_config, new_auth_token, OPEN_ID_CONNECT_AUDIENCE
             )
 
             tokens["refresh"] = new_refresh_token

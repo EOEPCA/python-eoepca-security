@@ -2,10 +2,10 @@ import os
 import requests
 
 from eoepca_security import (
-    request_oidcutil,
     ClientCredentials,
     RefreshToken,
 )
+from eoepca_security.util import OIDCUtil
 
 OPEN_ID_CONNECT_URL = os.environ.get("OPEN_ID_CONNECT_URL")
 if OPEN_ID_CONNECT_URL is None:
@@ -31,11 +31,11 @@ client_credentials = ClientCredentials(
     OPEN_ID_CONNECT_CLIENT_ID, OPEN_ID_CONNECT_CLIENT_SECRET
 )
 
-new_refresh_token, new_auth_token = request_oidcutil(
-    OPEN_ID_CONNECT_URL,
-    session=requests.Session(),
-    prev_oidc_util=None
-).refresh_auth_token(
+oidc_util = OIDCUtil(requests.Session())
+oidc_config = oidc_util.get_oidc_config(OPEN_ID_CONNECT_URL)
+
+new_refresh_token, new_auth_token = oidc_util.refresh_auth_token(
+    oidc_config,
     client_credentials,
     RefreshToken(OPEN_ID_REFRESH_TOKEN),
 )
