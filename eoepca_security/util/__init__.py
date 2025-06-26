@@ -151,6 +151,8 @@ class OIDCUtil:
 
 
 def get_session_with_cache() -> CachedSession:
+    # If I don't specify any parameters, the values will be cached forever
+    # return CachedSession(expire_after=0)
     return CachedSession()
 
 def request_oidcutil(session: CachedSession | None, url: str, **kvargs: dict[str, typing.Any]) -> OIDCUtil:
