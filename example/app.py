@@ -1,15 +1,12 @@
 from fastapi import Depends, FastAPI, Request, BackgroundTasks
-
-from eoepca_security import OIDCProxyScheme, ClientCredentials, Tokens, request_oidcutil
-
 import os
 import logging
 import time
-
 import typing
-# import typing_extensions
-
 import requests
+
+from eoepca_security import OIDCProxyScheme, ClientCredentials, Tokens
+from eoepca_security.util import OIDCUtil
 
 LOG = logging.getLogger("ExampleApp")
 
@@ -31,21 +28,24 @@ REMOTE_PROTECTED_ENDPOINT = os.environ["REMOTE_PROTECTED_ENDPOINT"]
 
 TLS_NO_VERIFY = (os.environ.get("TLS_NO_VERIFY") or "false").lower() == "true"
 
+session = requests.Session()
+
 
 def background(tokens: Tokens) -> None:
     wait = 20
+    oidc_util = OIDCUtil(session)
     for i in range(20):
         if i % 3 == 2 and tokens is not None:
-            # oidc_config = requests.get(OPEN_ID_CONNECT_URL).json()
-            oidc_util = request_oidcutil(OPEN_ID_CONNECT_URL)
+            oidc_config = oidc_util.get_oidc_config(OPEN_ID_CONNECT_URL)
 
             new_refresh_token, new_auth_token = oidc_util.refresh_auth_token(
+                oidc_config,
                 CLIENT_CREDENTIALS,
                 tokens["refresh"],
             )
 
             new_auth_token = oidc_util.validate_auth_token(
-                new_auth_token, OPEN_ID_CONNECT_AUDIENCE
+                oidc_config, new_auth_token, OPEN_ID_CONNECT_AUDIENCE
             )
 
             tokens["refresh"] = new_refresh_token
@@ -56,7 +56,7 @@ def background(tokens: Tokens) -> None:
         else:
             headers = {}
 
-        backend_request = requests.get(
+        backend_request = session.get(
             REMOTE_PROTECTED_ENDPOINT,
             headers=headers,
             verify=not TLS_NO_VERIFY,
@@ -97,7 +97,7 @@ async def root(
     else:
         backend_request_headers = {"Authorization": f"Bearer {tokens['auth'].raw}"}
 
-    backend_request = requests.get(
+    backend_request = session.get(
         REMOTE_PROTECTED_ENDPOINT,
         headers=backend_request_headers,
         verify=not TLS_NO_VERIFY,

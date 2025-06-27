@@ -3,7 +3,6 @@ from .fastapi import (
     Tokens as Tokens,
 )
 from .util import (
-    request_oidcutil as request_oidcutil,
     OIDCUtil as OIDCUtil,
     ClientCredentials as ClientCredentials,
     AuthToken as AuthToken,

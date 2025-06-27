@@ -11,20 +11,18 @@ after which http://localhost:8080 forwards to https://remote_service:remote_port
 """
 
 import datetime
-import time
-from typing import Optional, Self, Iterable
+from typing import Any, Optional, Self, Iterable
 import os
 from urllib.parse import urlparse
+import requests
 
 from mitmproxy import ctx as ctx, http as http
 from mitmproxy.exceptions import OptionsError as OptionsError
 from mitmproxy.addonmanager import Loader as Loader
 
 from eoepca_security import (
-    request_oidcutil,
     OIDCUtil,
     ClientCredentials,
-    # AuthToken,
     ValidatedAuthToken,
     RefreshToken,
 )
@@ -34,7 +32,8 @@ class OIDCAuthProxy:
     def __init__(self: Self):
         self._current_auth_token: ValidatedAuthToken | None = None
         self._current_refresh_token: RefreshToken | None = None
-        self._oidcutil: OIDCUtil | None = None
+        self._oidc_util: OIDCUtil | None = None
+        self._oidc_config: dict[str, Any] | None = None
         self._client_credentials: ClientCredentials | None = None
 
     def load(self, loader: Loader) -> None:
@@ -90,8 +89,10 @@ class OIDCAuthProxy:
         if ctx.options.oidc_url is None:
             raise OptionsError("Must specify oidc_url")  # type: ignore
         if "oidc_url" in updates:
-            self._oidcutil = request_oidcutil(ctx.options.oidc_url)
-        assert self._oidcutil is not None
+            self._oidc_util = OIDCUtil(requests.Session())
+            self._oidc_config = self._oidc_util.get_oidc_config(ctx.options.oidc_url)
+        assert self._oidc_util is not None
+        assert self._oidc_config is not None
 
         # if "auth_token" in updates or "refresh_token" in updates:
         if ctx.options.auth_token is None and ctx.options.refresh_token is None:
@@ -127,8 +128,8 @@ class OIDCAuthProxy:
 
         if "auth_token" in updates:
             if ctx.options.auth_token is not None:
-                self._current_auth_token = self._oidcutil.validate_auth_token(
-                    ctx.options.auth_token, ctx.options.oidc_audience
+                self._current_auth_token = self._oidc_util.validate_auth_token(
+                    self._oidc_config, ctx.options.auth_token, ctx.options.oidc_audience
                 )
 
         if "refresh_token" in updates:
@@ -148,20 +149,24 @@ class OIDCAuthProxy:
                     "Unable to refresh auth token due to missing refresh_token"
                 )
 
-            if self._oidcutil is None:
-                raise RuntimeError("Internal error: _oidcutil not set")
+            if self._oidc_util is None:
+                raise RuntimeError("Internal error: _oidc_util not set")
+
+            if self._oidc_config is None:
+                raise RuntimeError("Internal error: _oidc_config not set")
 
             if self._client_credentials is None:
                 raise RuntimeError("Internal error: _client_credentials not set")
 
             ctx.log.info("Refreshing auth_token")  # type: ignore
-            new_refresh_token, new_auth_token = self._oidcutil.refresh_auth_token(
+            new_refresh_token, new_auth_token = self._oidc_util.refresh_auth_token(
+                self._oidc_config,
                 self._client_credentials,
                 self._current_refresh_token,
             )
 
-            new_auth_token = self._oidcutil.validate_auth_token(
-                new_auth_token, ctx.options.oidc_audience
+            new_auth_token = self._oidc_util.validate_auth_token(
+                self._oidc_config, new_auth_token, ctx.options.oidc_audience
             )
 
             self._current_auth_token = new_auth_token

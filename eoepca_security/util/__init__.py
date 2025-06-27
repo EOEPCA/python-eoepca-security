@@ -82,12 +82,16 @@ class OIDCUtil:
     utility class that wraps an OpenID-connect Well-Known Configuration
     """
 
-    def __init__(self, oidc_config: dict[str, typing.Any]):
-        self._oidc_config = oidc_config
-        self._jwks_client = jwt.PyJWKClient(oidc_config["jwks_uri"])
+    def __init__(self, session: requests.Session) -> None:
+        self._session = session
+        # set invalid URI and will have to set it to a correct one before use
+        self._jwks_client = jwt.PyJWKClient(uri="")
+
+    def get_oidc_config(self, url: str, **kvargs: dict[str, typing.Any]) -> dict[str, typing.Any]:
+        return self._session.get(url, **kvargs).json()
 
     def validate_auth_token(
-        self, auth_token: AuthToken | str, audience: str | None = None
+        self, oidc_config: dict[str, typing.Any], auth_token: AuthToken | str, audience: str | None = None
     ) -> ValidatedAuthToken:
         """
         Validates an auth token and returns decoded and validated auth token.
@@ -95,7 +99,10 @@ class OIDCUtil:
         if isinstance(auth_token, str):
             auth_token = AuthToken(raw=auth_token)
 
+        self._jwks_client.uri = oidc_config["jwks_uri"]
         signing_key = self._jwks_client.get_signing_key_from_jwt(auth_token.raw)
+        # set invalid URI again so that if forget to set it before using _jwks_client, get an error rather than using out of date uri
+        self._jwks_client.uri = ""
 
         return ValidatedAuthToken(
             raw=auth_token.raw,
@@ -103,7 +110,7 @@ class OIDCUtil:
                 auth_token.raw,
                 key=signing_key,
                 audience=audience,
-                algorithms=self._oidc_config["id_token_signing_alg_values_supported"],
+                algorithms=oidc_config["id_token_signing_alg_values_supported"],
             ),
         )
 
@@ -124,11 +131,11 @@ class OIDCUtil:
         return ValidatedIDToken(raw=id_token.raw, decoded=id_token_data)
 
     def refresh_auth_token(
-        self, client_credentials: ClientCredentials, refresh_token: RefreshToken
+        self, oidc_config: dict[str, typing.Any], client_credentials: ClientCredentials, refresh_token: RefreshToken
     ) -> tuple[RefreshToken, AuthToken]:
-        token_endpoint = self._oidc_config["token_endpoint"]
+        token_endpoint = oidc_config["token_endpoint"]
 
-        refresh_data = requests.post(
+        refresh_data = self._session.post(
             token_endpoint,
             data={
                 "grant_type": "refresh_token",
@@ -142,10 +149,3 @@ class OIDCUtil:
             RefreshToken(refresh_data["refresh_token"]),
             AuthToken(refresh_data["access_token"]),
         )
-
-
-def request_oidcutil(url: str, **kvargs: dict[str, typing.Any]) -> OIDCUtil:
-    """
-    GETs an OpenID-connect Well-Known configuration and returns the corresponding OIDCUtil.
-    """
-    return OIDCUtil(oidc_config=requests.get(url, **kvargs).json())  # type: ignore
