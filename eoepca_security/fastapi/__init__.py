@@ -1,5 +1,3 @@
-import datetime
-import time
 from fastapi import Request
 from fastapi.security.base import SecurityBase
 from fastapi.security.utils import get_authorization_scheme_param
@@ -124,10 +122,6 @@ class OIDCProxyScheme(SecurityBase):
         self._require_id_token = require_id_token
 
         self._oidc_util = util.OIDCUtil(requests.Session())
-        # OIDC util with the last fetch time
-        # self._oidc_util_and_fetch_time: typing.Optional[tuple[util.OIDCUtil, float]] = (
-        #     None
-        # )
 
     async def __call__(self, request: Request) -> Tokens | None:
         id_token_raw = request.headers.get(self._id_token_header)
@@ -180,49 +174,12 @@ class OIDCProxyScheme(SecurityBase):
             oidc_config = self._oidc_util.get_oidc_config(self.model.openIdConnectUrl)
         except Exception as e:
             LOG.error(f"Failed to get OIDC JWKS client: {str(e)}")
-
             if self.auto_error:
                 raise HTTPException(
                     status_code=HTTP_403_FORBIDDEN,
                     detail="Invalid authentication credentials",
                 )
-
-            # TODO: Is it reasonable to return now?
             return None
-
-        # cur_time = time.monotonic()
-        # oidc_util: util.OIDCUtil
-        # fetch_time: float
-        # match self._oidc_util_and_fetch_time:
-        #     # the tuple() part is so that mypy infers types correctly
-        #     case tuple((oidc, last_fetch_time)) if cur_time - last_fetch_time < 10:
-        #         oidc_util = oidc
-        #         fetch_time = last_fetch_time
-        #     case _:
-        #         try:
-        #             oidc_util = util.request_oidcutil(
-        #                 self.model.openIdConnectUrl,
-        #                 session=self._session,
-        #                 prev_oidc_util=None
-        #                 if self._oidc_util_and_fetch_time is None
-        #                 else self._oidc_util_and_fetch_time[0],
-        #             )
-        #             fetch_time = cur_time
-        #             self._oidc_util_and_fetch_time = (oidc_util, fetch_time)
-
-        #         except Exception as e:
-        #             LOG.error(f"Failed to get OIDC JWKS client: {str(e)}")
-
-        #             if self.auto_error:
-        #                 raise HTTPException(
-        #                     status_code=HTTP_403_FORBIDDEN,
-        #                     detail="Invalid authentication credentials",
-        #                 )
-
-        #             # TODO: Ask Tilo if this is reasonable
-        #             return None
-
-        # LOG.info(f"Time: {datetime.datetime.now()} fetch time {fetch_time}")
 
         try:
             if auth_token_raw is None:

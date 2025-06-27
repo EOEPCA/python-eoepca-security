@@ -23,7 +23,6 @@ from mitmproxy.addonmanager import Loader as Loader
 from eoepca_security import (
     OIDCUtil,
     ClientCredentials,
-    # AuthToken,
     ValidatedAuthToken,
     RefreshToken,
 )
