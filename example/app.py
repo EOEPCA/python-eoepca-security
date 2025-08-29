@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Request, BackgroundTasks
 import os
 import logging
@@ -7,6 +8,9 @@ import requests
 
 from eoepca_security import OIDCProxyScheme, ClientCredentials, Tokens
 from eoepca_security.util import OIDCUtil
+
+# Load environment variables from .env file
+load_dotenv()
 
 LOG = logging.getLogger("ExampleApp")
 

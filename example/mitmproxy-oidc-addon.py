@@ -14,6 +14,7 @@ import datetime
 from typing import Any, Optional, Self, Iterable
 import os
 from urllib.parse import urlparse
+from dotenv import load_dotenv
 import requests
 
 from mitmproxy import ctx as ctx, http as http
@@ -26,6 +27,9 @@ from eoepca_security import (
     ValidatedAuthToken,
     RefreshToken,
 )
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class OIDCAuthProxy:

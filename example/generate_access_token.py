@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import requests
 
 from eoepca_security import (
@@ -6,6 +7,9 @@ from eoepca_security import (
     RefreshToken,
 )
 from eoepca_security.util import OIDCUtil
+
+# Load environment variables from .env file
+load_dotenv()
 
 OPEN_ID_CONNECT_URL = os.environ.get("OPEN_ID_CONNECT_URL")
 if OPEN_ID_CONNECT_URL is None:
