@@ -1,5 +1,9 @@
+from dotenv import load_dotenv
 from mitmproxy.tools.main import mitmdump
 import os
+
+# Load environment variables from .env file
+load_dotenv()
 
 OPEN_ID_CONNECT_URL = os.environ.get("OPEN_ID_CONNECT_URL")
 if OPEN_ID_CONNECT_URL is None:
